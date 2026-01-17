@@ -257,19 +257,37 @@ set(ALL_FILES
 )
 
 ################################################################################
-# Target
+# Target - Build both OoT and MM variants
 ################################################################################
 
-add_library(${PROJECT_NAME} STATIC ${ALL_FILES})
+# Build both game variants unless ZAPD_SINGLE_GAME is set
+if(ZAPD_SINGLE_GAME)
+    set(ZAPD_GAME_VARIANTS ${ZAPD_SINGLE_GAME})
+else()
+    set(ZAPD_GAME_VARIANTS "OoT" "MM")
+endif()
 
-add_executable(ZAPD ExecutableMain.cpp)
-target_link_libraries(ZAPD ${PROJECT_NAME})
+foreach(GAME_VARIANT ${ZAPD_GAME_VARIANTS})
+    set(LIB_TARGET_NAME "ZAPDLib_${GAME_VARIANT}")
+    set(EXE_TARGET_NAME "ZAPD_${GAME_VARIANT}")
+
+    # Determine which OTRExporter to link with
+    if(GAME_VARIANT STREQUAL "MM")
+        set(OTREXPORTER_TARGET "OTRExporter_MM")
+    else()
+        set(OTREXPORTER_TARGET "OTRExporter_OoT")
+    endif()
+
+    add_library(${LIB_TARGET_NAME} STATIC ${ALL_FILES})
+
+    add_executable(${EXE_TARGET_NAME} ExecutableMain.cpp)
+    target_link_libraries(${EXE_TARGET_NAME} ${LIB_TARGET_NAME})
 
 
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
-use_props(${PROJECT_NAME} "${CMAKE_CONFIGURATION_TYPES}" "${DEFAULT_CXX_PROPS}")
-use_props(ZAPD "${CMAKE_CONFIGURATION_TYPES}" "${DEFAULT_CXX_PROPS}")
+use_props(${LIB_TARGET_NAME} "${CMAKE_CONFIGURATION_TYPES}" "${DEFAULT_CXX_PROPS}")
+use_props(${EXE_TARGET_NAME} "${CMAKE_CONFIGURATION_TYPES}" "${DEFAULT_CXX_PROPS}")
 endif()
 ################################################################################
 # Includes for CMake from *.props
@@ -279,24 +297,24 @@ set(ROOT_NAMESPACE ZAPD)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 	if("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "x64")
-		set_target_properties(${PROJECT_NAME} PROPERTIES
+		set_target_properties(${LIB_TARGET_NAME} PROPERTIES
 			INTERPROCEDURAL_OPTIMIZATION_RELEASE "TRUE"
 		)
 	elseif("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "Win32")
-		set_target_properties(${PROJECT_NAME} PROPERTIES
+		set_target_properties(${LIB_TARGET_NAME} PROPERTIES
 			INTERPROCEDURAL_OPTIMIZATION_RELEASE "TRUE"
 		)
 	endif()
 elseif (CMAKE_SYSTEM_NAME MATCHES "Linux|Darwin")
-        set_target_properties(ZAPD PROPERTIES
-		OUTPUT_NAME "ZAPD.out"
+        set_target_properties(${EXE_TARGET_NAME} PROPERTIES
+		OUTPUT_NAME "${EXE_TARGET_NAME}.out"
 	)
 endif()
 ################################################################################
 # MSVC runtime library
 ################################################################################
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
-foreach(ZTarget ${PROJECT_NAME} ZAPD)
+foreach(ZTarget ${LIB_TARGET_NAME} ${EXE_TARGET_NAME})
 	get_property(MSVC_RUNTIME_LIBRARY_DEFAULT TARGET ${ZTarget} PROPERTY MSVC_RUNTIME_LIBRARY)
 	if("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "Win32" OR "${CMAKE_VS_PLATFORM_NAME}" STREQUAL "x64")
 		string(CONCAT "MSVC_RUNTIME_LIBRARY_STR"
@@ -317,13 +335,13 @@ endif()
 ################################################################################
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 	if("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "x64")
-		target_compile_definitions(${PROJECT_NAME} PRIVATE
+		target_compile_definitions(${LIB_TARGET_NAME} PRIVATE
 			"_CRT_SECURE_NO_WARNINGS;"
 			"_MBCS"
 			STORMLIB_NO_AUTO_LINK
 		)
 	elseif("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "Win32")
-		target_compile_definitions(${PROJECT_NAME} PRIVATE
+		target_compile_definitions(${LIB_TARGET_NAME} PRIVATE
 			"$<$<CONFIG:Debug>:"
 				"_CRT_SECURE_NO_WARNINGS"
 			">"
@@ -342,7 +360,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 endif()
 find_package(PNG REQUIRED)
 
-target_include_directories(${PROJECT_NAME} PRIVATE
+target_include_directories(${LIB_TARGET_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../libultraship/src/resource
     ${CMAKE_CURRENT_SOURCE_DIR}/../../libultraship/include
 	${CMAKE_CURRENT_SOURCE_DIR}/../../ZAPDTR/lib/libgfxd
@@ -352,7 +370,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 if(MSVC)
     if("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "x64")
-        target_compile_options(${PROJECT_NAME} PRIVATE
+        target_compile_options(${LIB_TARGET_NAME} PRIVATE
             $<$<CONFIG:Debug>:
                 /Od;
                 /RTC1
@@ -368,7 +386,7 @@ if(MSVC)
             ${DEFAULT_CXX_EXCEPTION_HANDLING}
         )
     elseif("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "Win32")
-        target_compile_options(${PROJECT_NAME} PRIVATE
+        target_compile_options(${LIB_TARGET_NAME} PRIVATE
             $<$<CONFIG:Debug>:
                 /Od
             >
@@ -385,7 +403,7 @@ if(MSVC)
         )
     endif()
     if("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "x64")
-        target_link_options(${PROJECT_NAME} PRIVATE
+        target_link_options(${LIB_TARGET_NAME} PRIVATE
             $<$<CONFIG:Debug>:
                 /PROFILE
             >
@@ -396,7 +414,7 @@ if(MSVC)
             /DEBUG:FULL
         )
     elseif("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "Win32")
-        target_link_options(${PROJECT_NAME} PRIVATE
+        target_link_options(${LIB_TARGET_NAME} PRIVATE
             $<$<CONFIG:Debug>:
                 /PROFILE
             >
@@ -410,7 +428,7 @@ if(MSVC)
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU|Clang|AppleClang")
-	target_compile_options(${PROJECT_NAME} PUBLIC
+	target_compile_options(${LIB_TARGET_NAME} PUBLIC
 		-Wall -Wextra -Wno-error
         -Wno-unused-parameter
         -Wno-unused-function
@@ -423,11 +441,11 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU|Clang|AppleClang")
 	)
 
     if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-        target_link_options(${PROJECT_NAME} PUBLIC
+        target_link_options(${LIB_TARGET_NAME} PUBLIC
             -pthread
         )
     else()
-        target_link_options(${PROJECT_NAME} PUBLIC
+        target_link_options(${LIB_TARGET_NAME} PUBLIC
             -pthread
             -Wl,-export-dynamic
         )
@@ -438,8 +456,8 @@ endif()
 ################################################################################
 # Dependencies
 ################################################################################
-add_dependencies(${PROJECT_NAME}
-    OTRExporter
+add_dependencies(${LIB_TARGET_NAME}
+    ${OTREXPORTER_TARGET}
     libultraship
 )
 
@@ -447,7 +465,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 #	if("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "x64")
 		set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 		set(ADDITIONAL_LIBRARY_DEPENDENCIES
-			"-WHOLEARCHIVE:$<TARGET_LINKER_FILE_DIR:OTRExporter>/$<TARGET_LINKER_FILE_NAME:OTRExporter>"
+			"-WHOLEARCHIVE:$<TARGET_LINKER_FILE_DIR:${OTREXPORTER_TARGET}>/$<TARGET_LINKER_FILE_NAME:${OTREXPORTER_TARGET}>"
 			"libultraship;"
 			storm
 			PNG::PNG
@@ -457,7 +475,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 	set(THREADS_PREFER_PTHREAD_FLAG ON)
 	find_package(Threads REQUIRED)
 	set(ADDITIONAL_LIBRARY_DEPENDENCIES
-		-Wl,-force_load $<TARGET_LINKER_FILE_DIR:OTRExporter>/$<TARGET_LINKER_FILE_NAME:OTRExporter>
+		-Wl,-force_load $<TARGET_LINKER_FILE_DIR:${OTREXPORTER_TARGET}>/$<TARGET_LINKER_FILE_NAME:${OTREXPORTER_TARGET}>
 		"libultraship;"
 		PNG::PNG
 		${CMAKE_DL_LIBS}
@@ -467,7 +485,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
        set(THREADS_PREFER_PTHREAD_FLAG ON)
        find_package(Threads REQUIRED)
        set(ADDITIONAL_LIBRARY_DEPENDENCIES
-               -Wl,--whole-archive $<TARGET_LINKER_FILE_DIR:OTRExporter>/$<TARGET_LINKER_FILE_NAME:OTRExporter> -Wl,--no-whole-archive
+               -Wl,--whole-archive $<TARGET_LINKER_FILE_DIR:${OTREXPORTER_TARGET}>/$<TARGET_LINKER_FILE_NAME:${OTREXPORTER_TARGET}> -Wl,--no-whole-archive
                "libultraship;"
                PNG::PNG
                Threads::Threads
@@ -481,7 +499,7 @@ else()
 	set(THREADS_PREFER_PTHREAD_FLAG ON)
 	find_package(Threads REQUIRED)
 	set(ADDITIONAL_LIBRARY_DEPENDENCIES
-		-Wl,--whole-archive $<TARGET_LINKER_FILE_DIR:OTRExporter>/$<TARGET_LINKER_FILE_NAME:OTRExporter> -Wl,--no-whole-archive
+		-Wl,--whole-archive $<TARGET_LINKER_FILE_DIR:${OTREXPORTER_TARGET}>/$<TARGET_LINKER_FILE_NAME:${OTREXPORTER_TARGET}> -Wl,--no-whole-archive
 		"libultraship;"
 		PNG::PNG
 		${CMAKE_DL_LIBS}
@@ -490,14 +508,25 @@ else()
 endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "NintendoSwitch|CafeOS")
-add_library(pathconf OBJECT pathconf.c)
-target_link_libraries(${PROJECT_NAME} PUBLIC "${ADDITIONAL_LIBRARY_DEPENDENCIES}" $<TARGET_OBJECTS:pathconf> )
+if (NOT TARGET pathconf)
+    add_library(pathconf OBJECT pathconf.c)
+endif()
+target_link_libraries(${LIB_TARGET_NAME} PUBLIC "${ADDITIONAL_LIBRARY_DEPENDENCIES}" $<TARGET_OBJECTS:pathconf> )
 else()
-target_link_libraries(${PROJECT_NAME} PUBLIC "${ADDITIONAL_LIBRARY_DEPENDENCIES}")
+target_link_libraries(${LIB_TARGET_NAME} PUBLIC "${ADDITIONAL_LIBRARY_DEPENDENCIES}")
 endif()
 
-if (GAME_STR STREQUAL "MM")
-	target_compile_definitions(${PROJECT_NAME} PRIVATE GAME_MM)
+# Set game-specific compile definition
+if (GAME_VARIANT STREQUAL "MM")
+	target_compile_definitions(${LIB_TARGET_NAME} PRIVATE GAME_MM)
 else()
-	target_compile_definitions(${PROJECT_NAME} PRIVATE GAME_OOT)
+	target_compile_definitions(${LIB_TARGET_NAME} PRIVATE GAME_OOT)
+endif()
+
+endforeach()
+
+# Create aliases for backward compatibility
+if(NOT ZAPD_SINGLE_GAME)
+    add_library(ZAPDLib ALIAS ZAPDLib_OoT)
+    add_executable(ZAPD ALIAS ZAPD_OoT)
 endif()
