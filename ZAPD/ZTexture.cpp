@@ -148,6 +148,19 @@ void ZTexture::ParseRawData()
 	if (rawDataIndex % 8 != 0)
 		dWordAligned = false;
 
+	// Bounds check: ensure we have enough data to read the texture
+	const auto& parentRawData = parent->GetRawData();
+	size_t requiredSize = rawDataIndex + GetRawDataSize();
+	if (requiredSize > parentRawData.size())
+	{
+		HANDLE_WARNING_RESOURCE(WarningType::InvalidAttributeValue, parent, this, rawDataIndex,
+		                        StringHelper::Sprintf(
+		                            "Texture at 0x%06X requires %zu bytes but only %zu available (dimensions: %dx%d). Skipping.",
+		                            rawDataIndex, requiredSize, parentRawData.size(), width, height),
+		                        "");
+		return;
+	}
+
 	switch (format)
 	{
 	case TextureType::RGBA16bpp:
