@@ -295,7 +295,10 @@ endif()
 
 set(ROOT_NAMESPACE ZAPD)
 
-if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+# Enable IPO/LTO for Windows, but NOT for single-exe builds where we use
+# /FORCE:MULTIPLE to handle duplicate symbols. /GL (IPO) is incompatible
+# with /FORCE:MULTIPLE - causes LNK1179 (duplicate COMDAT) errors.
+if (CMAKE_SYSTEM_NAME STREQUAL "Windows" AND NOT SINGLE_EXECUTABLE_BUILD)
 	if("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "x64")
 		set_target_properties(${LIB_TARGET_NAME} PROPERTIES
 			INTERPROCEDURAL_OPTIMIZATION_RELEASE "TRUE"
