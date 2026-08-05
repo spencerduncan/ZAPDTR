@@ -320,7 +320,27 @@ std::string ZResource::GetSourceOutputHeader([[maybe_unused]] const std::string&
 		std::string outName = parent->GetOutName();
 		std::string prefix = "";
 
-		if (GetResourceType() == ZResourceType::DisplayList || GetResourceType() == ZResourceType::Texture)
+		// The string this builds has to name the path the exporter actually wrote into the archive.
+		// That path comes from OTRExporter: ExporterResourceEnd() (Main.cpp) for the file name and
+		// OTRExporter_DisplayList::GetPrefix() (DisplayListExporter.cpp) for the prefix. Both of
+		// those have an MM flavour and an OoT flavour; the code here had only OoT's, so regenerating
+		// an MM asset header emitted "scenes/shared/<name>_scene/..." for resources the archive
+		// stores under "scenes/nonmq/<name>/...". Neither segment matched, and neither game's build
+		// would notice until something tried to load through the regenerated define.
+		const bool isMM = Globals::Instance->game == ZGame::MM_RETAIL;
+
+		if (isMM)
+		{
+			// MM room resources are stored under the bare scene name: KAKUSIANA_room_00's contents
+			// live in "KAKUSIANA", not "KAKUSIANA_scene". Deliberately not restricted to display
+			// lists and textures the way OoT's rewrite below is -- ExporterResourceEnd() applies
+			// this to every resource in a room file, so restricting it would desync the rest.
+			if (StringHelper::Contains(outName, "_room"))
+			{
+				outName = StringHelper::Split(outName, "_room")[0];
+			}
+		}
+		else if (GetResourceType() == ZResourceType::DisplayList || GetResourceType() == ZResourceType::Texture)
 		{
 			//ZDisplayList* dList = (ZDisplayList*)this;
 
@@ -336,13 +356,23 @@ std::string ZResource::GetSourceOutputHeader([[maybe_unused]] const std::string&
 		    StringHelper::Contains(outName, "_scene") ||
 		    (StringHelper::Contains(parent->GetXmlFilePath().string(), "/scenes/") ||
 		     StringHelper::Contains(parent->GetXmlFilePath().string(), "\\scenes\\"))) {
-			prefix = "scenes/shared";
-
-			// Regex for xml paths that are dungeons with unique MQ variants (only the main dungeon, not boss rooms)
-			std::regex dungeonsWithMQ(R"(((ydan)|(ddan)|(bdan)|(Bmori1)|(HIDAN)|(MIZUsin)|(jyasinzou)|(HAKAdan)|(HAKAdanCH)|(ice_doukutu)|(men)|(ganontika))\.xml)");
-
-			if (StringHelper::Contains(xmlPath, "dungeons/") && std::regex_search(xmlPath, dungeonsWithMQ)) {
+			if (isMM) {
+				// MM's GetPrefix() puts every scene resource under "scenes/<mq|nonmq>", with no
+				// "shared" tier and no per-dungeon regex -- the MQ/non-MQ split is whole-rom there.
+				// MM has no Master Quest rom, so this is always nonmq, which is what mm.o2r holds.
+				// Pinning it rather than reading Globals::Instance->rom also keeps this consistent
+				// with the OoT branch below, which pins nonmq for the MQ dungeons so that a single
+				// generated header set serves both the MQ and non-MQ roms.
 				prefix = "scenes/nonmq";
+			} else {
+				prefix = "scenes/shared";
+
+				// Regex for xml paths that are dungeons with unique MQ variants (only the main dungeon, not boss rooms)
+				std::regex dungeonsWithMQ(R"(((ydan)|(ddan)|(bdan)|(Bmori1)|(HIDAN)|(MIZUsin)|(jyasinzou)|(HAKAdan)|(HAKAdanCH)|(ice_doukutu)|(men)|(ganontika))\.xml)");
+
+				if (StringHelper::Contains(xmlPath, "dungeons/") && std::regex_search(xmlPath, dungeonsWithMQ)) {
+					prefix = "scenes/nonmq";
+				}
 			}
 		}
 		else if (StringHelper::Contains(xmlPath, "objects/"))
